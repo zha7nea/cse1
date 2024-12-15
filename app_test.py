@@ -56,3 +56,27 @@ def test_get_customer_by_id(test_client):
     customer_data = {"customer_Other_Details": "Specific Test Customer"}
     create_response = test_client.post('/customers', json=customer_data)
     customer_id = create_response.get_json()['customer_ID']
+
+ # Retrieve the customer by ID
+    get_response = test_client.get(f'/customers/{customer_id}')
+    assert get_response.status_code == 200  # Expect 200 OK
+    retrieved_customer = get_response.get_json()
+    assert retrieved_customer['customer_ID'] == customer_id  # Verify the ID
+    assert retrieved_customer['customer_Other_Details'] == "Specific Test Customer"
+
+# Test to check if a customer can be updated
+def test_update_customer(test_client):
+    # Create a customer
+    customer_data = {"customer_Other_Details": "Customer to Update"}
+    create_response = test_client.post('/customers', json=customer_data)
+    customer_id = create_response.get_json()['customer_ID']
+
+    # Update the customer
+    updated_data = {"customer_Other_Details": "Updated Customer Details"}
+    update_response = test_client.put(f'/customers/{customer_id}', json=updated_data)
+    assert update_response.status_code == 200  # Expect 200 OK
+
+    # Verify the update
+    get_response = test_client.get(f'/customers/{customer_id}')
+    updated_customer = get_response.get_json()
+    assert updated_customer['customer_Other_Details'] == "Updated Customer Details"
