@@ -36,6 +36,9 @@ class CustomerCall(db.Model):
 
     # Relationships
     customer = db.relationship('Customer', backref='calls')
+# Create all tables in the database
+with app.app_context():
+    db.create_all()  # This creates all the tables defined in the models
 
 # --- Register Route --- 
 @app.route('/register', methods=['POST'])
@@ -61,7 +64,6 @@ def register():
 
     return jsonify({"message": "User registered successfully"}),
 
-
 # --- Login Route --- 
 @app.route('/login', methods=['POST'])
 def login():
@@ -69,28 +71,7 @@ def login():
     response, status_code = login_user(data, User)
     return jsonify(response), status_code
 
-# --- API Endpoints ---
 
-#--- Protected Endpoints --- 
-@app.route('/protected', methods=['GET'])
-@token_required
-def protected():
-    return jsonify({"message": f"Hello, {request.user['username']}!"}), 200
-
-@app.route('/admin', methods=['GET'])
-@token_required
-@role_required("admin")
-def admin_only():
-    return jsonify({"message": "Welcome, Admin!"}), 200
-
-# --- Error Handling --- 
-@app.errorhandler(404)
-def not_found_error(error):
-    return jsonify({'error': 'Resource not found'}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify({'error': 'An internal error occurred'}), 500
 
 
 # Create all tables in the database
