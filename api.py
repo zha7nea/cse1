@@ -1,17 +1,25 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.exc import IntegrityError
+from security import token_required, role_required, hash_password, login_user
 
 app = Flask(__name__)
 
-# Configure SQLite database (can be swapped for other databases)
+# Configure database
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:root@127.0.0.1/callcenterdb'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Initialize the database
 db = SQLAlchemy(app)
 
-# --- Models ---
+# --- User Model --- 
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(100), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(50), nullable=False)  # e.g., 'admin' or 'user'
 
+# --- Models --- 
 class Customer(db.Model):
     __tablename__ = 'customers'
     customer_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -28,15 +36,50 @@ class CustomerCall(db.Model):
     # Relationships
     customer = db.relationship('Customer', backref='calls')
 
+# Create all tables in the database
+with app.app_context():
+    db.create_all()  # This creates all the tables defined in the models
 
-# --- API Endpoints ---
+# --- Register Route --- 
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    
+    if not data or not data.get("username") or not data.get("password"):
+        return jsonify({"error": "Username and password are required"}), 400
 
+    # Check if username already exists
+    existing_user = User.query.filter_by(username=data["username"]).first()
+    if existing_user:
+        return jsonify({"error": "Username already taken"}), 400
+
+    # Hash the password before saving it
+    hashed_password = hash_password(data["password"])
+
+    # Create a new user
+    new_user = User(username=data["username"], password=hashed_password, role="user")  # Default role can be 'user'
+    
+    db.session.add(new_user)
+    db.session.commit()
+
+    return jsonify({"message": "User registered successfully"}), 201
+
+# --- Login Route --- 
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    response, status_code = login_user(data, User)
+    return jsonify(response), status_code
+
+# --- API Endpoints --- 
 @app.route('/customers', methods=['GET'])
+
 def get_customers():
     customers = Customer.query.all()
     return jsonify([{'customer_ID': c.customer_ID, 'customer_Other_Details': c.customer_Other_Details} for c in customers]), 200
 
 @app.route('/customers', methods=['POST'])
+
 def create_customer():
     data = request.get_json()
     if 'customer_Other_Details' not in data:
@@ -52,6 +95,7 @@ def create_customer():
     return jsonify({'message': 'Customer created', 'customer_ID': new_customer.customer_ID}), 201
 
 @app.route('/customers/<int:customer_id>', methods=['GET'])
+
 def get_customer(customer_id):
     customer = Customer.query.get(customer_id)
     if not customer:
@@ -60,6 +104,7 @@ def get_customer(customer_id):
     return jsonify({'customer_ID': customer.customer_ID, 'customer_Other_Details': customer.customer_Other_Details}), 200
 
 @app.route('/customers/<int:customer_id>', methods=['PUT'])
+
 def update_customer(customer_id):
     customer = Customer.query.get(customer_id)
     if not customer:
@@ -73,6 +118,7 @@ def update_customer(customer_id):
     return jsonify({'message': 'Customer updated'}), 200
 
 @app.route('/customers/<int:customer_id>', methods=['DELETE'])
+
 def delete_customer(customer_id):
     customer = Customer.query.get(customer_id)
     if not customer:
@@ -83,6 +129,7 @@ def delete_customer(customer_id):
     return jsonify({'message': 'Customer deleted'}), 200
 
 @app.route('/customer_calls', methods=['POST'])
+
 def create_call():
     data = request.get_json()
     required_fields = ['customer_ID', 'call_Date_Time', 'call_Outcome_Code', 'call_Status_Code']
@@ -105,6 +152,7 @@ def create_call():
     return jsonify({'message': 'Call logged', 'call_ID': new_call.call_ID}), 201
 
 @app.route('/customer_calls/<int:call_id>', methods=['GET'])
+
 def get_call(call_id):
     call = CustomerCall.query.get(call_id)
     if not call:
@@ -119,6 +167,7 @@ def get_call(call_id):
     }), 200
 
 @app.route('/customer_calls/<int:call_id>', methods=['DELETE'])
+
 def delete_call(call_id):
     call = CustomerCall.query.get(call_id)
     if not call:
@@ -128,8 +177,19 @@ def delete_call(call_id):
     db.session.commit()
     return jsonify({'message': 'Call deleted'}), 200
 
-# --- Error Handling ---
+# --- Protected Endpoints --- 
+@app.route('/protected', methods=['GET'])
+@token_required
+def protected():
+    return jsonify({"message": f"Hello, {request.user['username']}!"}), 200
 
+@app.route('/admin', methods=['GET'])
+@token_required
+@role_required("admin")
+def admin_only():
+    return jsonify({"message": "Welcome, Admin!"}), 200
+
+# --- Error Handling --- 
 @app.errorhandler(404)
 def not_found_error(error):
     return jsonify({'error': 'Resource not found'}), 404
@@ -138,6 +198,6 @@ def not_found_error(error):
 def internal_error(error):
     return jsonify({'error': 'An internal error occurred'}), 500
 
-# --- Run the Application ---
+# --- Run the Application --- 
 if __name__ == '__main__':
     app.run(debug=True)
