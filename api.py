@@ -78,7 +78,7 @@ def login():
 with app.app_context():
     db.create_all()  # This creates all the tables defined in the models
 
- 
+# --- API Endpoints --- 
 @app.route('/customers', methods=['GET'])
 
 def get_customers():
@@ -184,7 +184,27 @@ def delete_call(call_id):
     db.session.commit()
     return jsonify({'message': 'Call deleted'}), 200
 
-# 
+# # --- Protected Endpoints --- 
+@app.route('/protected', methods=['GET'])
+@token_required
+def protected():
+    return jsonify({"message": f"Hello, {request.user['username']}!"}), 200
+
+@app.route('/admin', methods=['GET'])
+@token_required
+@role_required("admin")
+def admin_only():
+    return jsonify({"message": "Welcome, Admin!"}), 200
+
+# --- Error Handling --- 
+@app.errorhandler(404)
+def not_found_error(error):
+    return jsonify({'error': 'Resource not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'An internal error occurred'}), 500
+
 # --- Run the Application --- 
 if __name__ == '__main__':
     app.run(debug=True)
