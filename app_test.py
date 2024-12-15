@@ -17,3 +17,13 @@ def test_client():
             db.session.remove()  # Cleanup after tests
             db.drop_all()  # Drop tables
 
+# Sample test to check if customers can be retrieved
+def test_get_customers(test_client):
+    response = test_client.get('/customers')
+    assert response.status_code == 200  # Check if the response is 200 OK
+
+# Sample test to check if a customer can be created
+def test_create_customer(test_client):
+    customer_data = {"customer_Other_Details": "Test customer"}
+    response = test_client.post('/customers', json=customer_data)
+    assert response.status_code == 201  # Check if the response is 201 Created
