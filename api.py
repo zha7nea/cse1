@@ -59,7 +59,39 @@ def register():
     db.session.add(new_user)
     db.session.commit()
 
-    return jsonify({"message": "User registered successfully"}), 201
+    return jsonify({"message": "User registered successfully"}),
+
+
+# --- Login Route --- 
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    response, status_code = login_user(data, User)
+    return jsonify(response), status_code
+
+# --- API Endpoints ---
+
+#--- Protected Endpoints --- 
+@app.route('/protected', methods=['GET'])
+@token_required
+def protected():
+    return jsonify({"message": f"Hello, {request.user['username']}!"}), 200
+
+@app.route('/admin', methods=['GET'])
+@token_required
+@role_required("admin")
+def admin_only():
+    return jsonify({"message": "Welcome, Admin!"}), 200
+
+# --- Error Handling --- 
+@app.errorhandler(404)
+def not_found_error(error):
+    return jsonify({'error': 'Resource not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'An internal error occurred'}), 500
+
 
 # Create all tables in the database
 with app.app_context():
