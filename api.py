@@ -37,6 +37,30 @@ class CustomerCall(db.Model):
     # Relationships
     customer = db.relationship('Customer', backref='calls')
 
+# --- Register Route --- 
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    
+    if not data or not data.get("username") or not data.get("password"):
+        return jsonify({"error": "Username and password are required"}), 400
+
+    # Check if username already exists
+    existing_user = User.query.filter_by(username=data["username"]).first()
+    if existing_user:
+        return jsonify({"error": "Username already taken"}), 400
+
+    # Hash the password before saving it
+    hashed_password = hash_password(data["password"])
+
+    # Create a new user
+    new_user = User(username=data["username"], password=hashed_password, role="user")  # Default role can be 'user'
+    
+    db.session.add(new_user)
+    db.session.commit()
+
+    return jsonify({"message": "User registered successfully"}), 201
+
 # Create all tables in the database
 with app.app_context():
     db.create_all()  # This creates all the tables defined in the models
