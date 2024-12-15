@@ -19,6 +19,7 @@ class User(db.Model):
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(50), nullable=False)  # e.g., 'admin' or 'user'
 
+
 # --- Models --- 
 class Customer(db.Model):
     __tablename__ = 'customers'
@@ -40,38 +41,7 @@ class CustomerCall(db.Model):
 with app.app_context():
     db.create_all()  # This creates all the tables defined in the models
 
-# --- Register Route --- 
-@app.route('/register', methods=['POST'])
-def register():
-    data = request.get_json()
-    
-    if not data or not data.get("username") or not data.get("password"):
-        return jsonify({"error": "Username and password are required"}), 400
-
-    # Check if username already exists
-    existing_user = User.query.filter_by(username=data["username"]).first()
-    if existing_user:
-        return jsonify({"error": "Username already taken"}), 400
-
-    # Hash the password before saving it
-    hashed_password = hash_password(data["password"])
-
-    # Create a new user
-    new_user = User(username=data["username"], password=hashed_password, role="user")  # Default role can be 'user'
-    
-    db.session.add(new_user)
-    db.session.commit()
-
-    return jsonify({"message": "User registered successfully"}), 201
-
-# --- Login Route --- 
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    response, status_code = login_user(data, User)
-    return jsonify(response), status_code
-
-# --- API Endpoints --- 
+ 
 @app.route('/customers', methods=['GET'])
 
 def get_customers():
@@ -177,27 +147,7 @@ def delete_call(call_id):
     db.session.commit()
     return jsonify({'message': 'Call deleted'}), 200
 
-# --- Protected Endpoints --- 
-@app.route('/protected', methods=['GET'])
-@token_required
-def protected():
-    return jsonify({"message": f"Hello, {request.user['username']}!"}), 200
-
-@app.route('/admin', methods=['GET'])
-@token_required
-@role_required("admin")
-def admin_only():
-    return jsonify({"message": "Welcome, Admin!"}), 200
-
-# --- Error Handling --- 
-@app.errorhandler(404)
-def not_found_error(error):
-    return jsonify({'error': 'Resource not found'}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify({'error': 'An internal error occurred'}), 500
-
+# 
 # --- Run the Application --- 
 if __name__ == '__main__':
     app.run(debug=True)
