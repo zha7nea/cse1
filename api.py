@@ -1,15 +1,21 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from security import token_required, role_required, hash_password, login_user
+from faker import Faker  # Added for Faker functionality
+import random  # For generating random values (like codes)
 
 app = Flask(__name__)
 
-# Configure database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:root@127.0.0.1/callcenterdb'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config["MYSQL_HOST"] = "localhost"
+app.config["MYSQL_USER"] = "root"
+app.config["MYSQL_PASSWORD"] = "root"
+app.config["MYSQL_DB"] = "callcenter_backup.sql"
 
 # Initialize the database
 db = SQLAlchemy(app)
+
+# Initialize Faker
+fake = Faker()
 
 # --- User Model --- 
 class User(db.Model):
@@ -18,7 +24,6 @@ class User(db.Model):
     username = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(50), nullable=False)  # e.g., 'admin' or 'user'
-
 
 # --- Models --- 
 class Customer(db.Model):
@@ -36,9 +41,10 @@ class CustomerCall(db.Model):
 
     # Relationships
     customer = db.relationship('Customer', backref='calls')
+
 # Create all tables in the database
 with app.app_context():
-    db.create_all()  # This creates all the tables defined in the models
+    db.create_all()
 
 # --- Register Route --- 
 @app.route('/register', methods=['POST'])
@@ -62,7 +68,7 @@ def register():
     db.session.add(new_user)
     db.session.commit()
 
-    return jsonify({"message": "User registered successfully"}),
+    return jsonify({"message": "User registered successfully"}), 200
 
 # --- Login Route --- 
 @app.route('/login', methods=['POST'])
@@ -71,22 +77,82 @@ def login():
     response, status_code = login_user(data, User)
     return jsonify(response), status_code
 
+# --- Faker Data Generation Route --- 
+@app.route('/generate_fake_customers', methods=['POST'])
+@token_required
+@role_required("admin")
+def generate_fake_customers():
+    """
+    Generate and insert fake customer data into the database.
+    """
+    try:
+        num_records = request.json.get('num_records', 10)  # Default: 10 records
+        fake_customers = []
 
+        for _ in range(num_records):
+            fake_customer = Customer(
+                customer_Other_Details=fake.sentence(nb_words=6)  # Generate fake customer details
+            )
+            db.session.add(fake_customer)
+            fake_customers.append({'customer_Other_Details': fake_customer.customer_Other_Details})
 
+        db.session.commit()
+        return jsonify({
+            'message': f'{num_records} fake customers generated successfully!',
+            'customers': fake_customers
+        }), 201
 
-# Create all tables in the database
-with app.app_context():
-    db.create_all()  # This creates all the tables defined in the models
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/generate_fake_calls', methods=['POST'])
+@token_required
+@role_required("admin")
+def generate_fake_calls():
+    """
+    Generate and insert fake call data into the database.
+    """
+    try:
+        num_records = request.json.get('num_records', 10)  # Default: 10 records
+        customers = Customer.query.all()  # Retrieve all customers
+        if not customers:
+            return jsonify({'error': 'No customers found. Add customers before generating calls.'}), 400
+
+        fake_calls = []
+
+        for _ in range(num_records):
+            random_customer = random.choice(customers)
+            fake_call = CustomerCall(
+                customer_ID=random_customer.customer_ID,
+                call_Date_Time=fake.date_time_this_year(),
+                call_Outcome_Code=f'OC{random.randint(1, 5)}',  # Random outcome code
+                call_Status_Code=f'SC{random.randint(1, 3)}'   # Random status code
+            )
+            db.session.add(fake_call)
+            fake_calls.append({
+                'customer_ID': fake_call.customer_ID,
+                'call_Date_Time': str(fake_call.call_Date_Time),
+                'call_Outcome_Code': fake_call.call_Outcome_Code,
+                'call_Status_Code': fake_call.call_Status_Code
+            })
+
+        db.session.commit()
+        return jsonify({
+            'message': f'{num_records} fake customer calls generated successfully!',
+            'calls': fake_calls
+        }), 201
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # --- API Endpoints --- 
-@app.route('/customers', methods=['GET'])
 
+@app.route('/customers', methods=['GET'])
 def get_customers():
     customers = Customer.query.all()
     return jsonify([{'customer_ID': c.customer_ID, 'customer_Other_Details': c.customer_Other_Details} for c in customers]), 200
 
 @app.route('/customers', methods=['POST'])
-
 def create_customer():
     data = request.get_json()
     if 'customer_Other_Details' not in data:
@@ -102,7 +168,6 @@ def create_customer():
     return jsonify({'message': 'Customer created', 'customer_ID': new_customer.customer_ID}), 201
 
 @app.route('/customers/<int:customer_id>', methods=['GET'])
-
 def get_customer(customer_id):
     customer = Customer.query.get(customer_id)
     if not customer:
@@ -111,7 +176,6 @@ def get_customer(customer_id):
     return jsonify({'customer_ID': customer.customer_ID, 'customer_Other_Details': customer.customer_Other_Details}), 200
 
 @app.route('/customers/<int:customer_id>', methods=['PUT'])
-
 def update_customer(customer_id):
     customer = Customer.query.get(customer_id)
     if not customer:
@@ -125,7 +189,6 @@ def update_customer(customer_id):
     return jsonify({'message': 'Customer updated'}), 200
 
 @app.route('/customers/<int:customer_id>', methods=['DELETE'])
-
 def delete_customer(customer_id):
     customer = Customer.query.get(customer_id)
     if not customer:
@@ -136,7 +199,6 @@ def delete_customer(customer_id):
     return jsonify({'message': 'Customer deleted'}), 200
 
 @app.route('/customer_calls', methods=['POST'])
-
 def create_call():
     data = request.get_json()
     required_fields = ['customer_ID', 'call_Date_Time', 'call_Outcome_Code', 'call_Status_Code']
@@ -159,7 +221,6 @@ def create_call():
     return jsonify({'message': 'Call logged', 'call_ID': new_call.call_ID}), 201
 
 @app.route('/customer_calls/<int:call_id>', methods=['GET'])
-
 def get_call(call_id):
     call = CustomerCall.query.get(call_id)
     if not call:
@@ -174,7 +235,6 @@ def get_call(call_id):
     }), 200
 
 @app.route('/customer_calls/<int:call_id>', methods=['DELETE'])
-
 def delete_call(call_id):
     call = CustomerCall.query.get(call_id)
     if not call:
@@ -184,7 +244,7 @@ def delete_call(call_id):
     db.session.commit()
     return jsonify({'message': 'Call deleted'}), 200
 
-# # --- Protected Endpoints --- 
+# --- Protected Endpoints --- 
 @app.route('/protected', methods=['GET'])
 @token_required
 def protected():
