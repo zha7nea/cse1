@@ -26,6 +26,19 @@ def create_app(config=None):
 
     return app
 
+# Register routes
+def register_routes(app):
+    @app.route('/')
+    def home():
+        return jsonify({
+            'message': 'Call Center Management System',
+            'endpoints': {
+                '/customers': 'Manage accounts',
+                '/customers/<customer_ID>': 'Manage a specific account'
+            }
+        })
+
+
 class Customer(db.Model):
     __tablename__ = 'customers'
 
