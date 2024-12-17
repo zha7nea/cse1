@@ -75,4 +75,32 @@ def test_create_account(client):
     response = client.post('/customers', json=account_data)
     json_data = response.get_json()
     assert response.status_code == 201
-    assert json_data['message'] == 'Account created successfully'
+    assert json_data['message'] == 'Customer created successfully'
+
+def test_update_account(client):
+    updated_data = {"customer_other_details": "Updated details for this customer."}
+    response = client.put('/customers/6', json=updated_data)
+    json_data = response.get_json()
+    assert response.status_code == 200
+    assert json_data['message'] == 'Customer information updated successfully'
+
+def test_delete_account(client):
+    response = client.delete('/customers/6')
+    json_data = response.get_json()
+    assert response.status_code == 200
+    assert json_data['message'] == 'Customer and associated calls deleted successfully'
+
+# Test for database integrity error in callcenter
+def test_create_customer_call_integrity_error(client):
+    call_data = {
+        'customer_id': 999,  # Non-existent customer_ID which should raise IntegrityError
+        'call_date_time': '2024-12-15 14:30:00',
+        'call_description': 'Follow-up call for support',
+        'call_outcome_code': 'SUCCESS',
+        'call_status_code': 'COMPLETED'
+    }
+
+    response = client.post('/customer_calls', json=call_data)  # Non-existent customer_ID
+    json_data = response.get_json()
+    assert response.status_code == 400
+    assert json_data['error'] == 'Database integrity error'
