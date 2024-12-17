@@ -101,6 +101,86 @@ def register_routes(app):
             'call_status_code': cc.call_status_code  # Status code of the call
         } for cc in customer_calls])
 
+    @app.route('/customers', methods=['POST'])
+    def create_customer():
+        data = request.get_json()
+
+        # List of required fields (excluding auto-incremented customer_id)
+        required_fields = ['customer_other_details']  # Adjust this list based on your model
+
+        # Check if any required field is missing
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            return jsonify({'error': f'Missing field(s): {", ".join(missing_fields)}'}), 400
+
+        try:
+            # Create a new customer instance without specifying customer_id (auto-increment)
+            new_customer = Customer(
+                customer_other_details=data['customer_other_details']  # Only other details
+            )
+            db.session.add(new_customer)
+            db.session.commit()
+            return jsonify({'message': 'Customer created successfully'}), 201
+        except IntegrityError:
+            db.session.rollback()
+            return jsonify({'error': 'Database integrity error'}), 400
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+        
+    @app.route('/customer_calls', methods=['POST'])
+    def create_customer_call():
+        data = request.get_json()
+
+        # List of required fields (excluding auto-incremented call_id)
+        required_fields = ['customer_id', 'call_date_time', 'call_description', 'call_outcome_code', 'call_status_code']
+
+        # Check if any required field is missing
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            return jsonify({'error': f'Missing field(s): {", ".join(missing_fields)}'}), 400
+
+        try:
+            # Create a new CustomerCall instance without specifying call_id (auto-increment)
+            new_customer_call = CustomerCall(
+                customer_id=data['customer_id'],
+                call_date_time=data['call_date_time'],
+                call_description=data['call_description'],
+                call_outcome_code=data['call_outcome_code'],
+                call_status_code=data['call_status_code'],
+                # Optionally include other fields like call_Outcome_Code or call_Status_Code if provided
+            )
+            db.session.add(new_customer_call)
+            db.session.commit()
+            return jsonify({'message': 'Customer call created successfully'}), 201
+        except IntegrityError:
+            db.session.rollback()
+            return jsonify({'error': 'Database integrity error'}), 400
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+        
+    @app.route('/customers/<int:customer_id>', methods=['DELETE'])
+    def delete_customer(customer_id):
+        try:
+            # Find the customer by ID
+            customer = Customer.query.get(customer_id)
+            
+            if customer is None:
+                return jsonify({'error': 'Customer not found'}), 404
+
+            # Deleting associated CustomerCalls (if any)
+            customer_calls = CustomerCall.query.filter_by(customer_id=customer_id).all()
+            for call in customer_calls:
+                db.session.delete(call)
+
+            # Now delete the customer
+            db.session.delete(customer)
+            db.session.commit()
+            return jsonify({'message': 'Customer and associated calls deleted successfully'}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 400
+    
+
 # Register error handlers
 def register_error_handlers(app):
     @app.errorhandler(404)
