@@ -34,9 +34,82 @@ def register_routes(app):
             'message': 'Call Center Management System',
             'endpoints': {
                 '/customers': 'Manage accounts',
-                '/customers/<customer_ID>': 'Manage a specific account'
+                '/customers/<int:customer_ID>': 'Manage a specific account'
             }
         })
+    
+    @app.route('/login', methods=['POST'])
+    def login():
+        data = request.get_json()
+
+        # Assume we check user credentials here
+        username = data.get('username')
+        password = data.get('password')
+
+        # In a real app, you would validate the user against the database
+        if username == 'admin' and password == 'admin':
+            access_token = create_access_token(identity=username, additional_claims={'role': 'admin'})
+            return jsonify(access_token=access_token), 200
+        else:
+            return jsonify({'error': 'Invalid credentials'}), 401
+
+    @app.route('/customers', methods=['GET'])
+    @jwt_required()
+    def get_customers():
+        claims = get_jwt()  # Get the full claims from the JWT
+        if claims.get('role') != 'admin':
+            return jsonify({'error': 'Access forbidden: You do not have the required role'}), 403
+
+        customers = Customer.query.all()
+        return jsonify([{
+            'customer_id': c.customer_id,  
+            'customer_other_details': c.customer_other_details 
+        } for c in customers])
+    
+    @app.route('/customers/<int:customer_ID>', methods=['GET'])
+    @jwt_required()  # Ensure the request includes a valid JWT
+    def get_customer(customer_ID):
+        claims = get_jwt()  # Get the full claims from the JWT
+
+        if claims.get('role') != 'admin':
+            return jsonify({'error': 'Access forbidden: You do not have the required role'}), 403
+
+        customer = db.session.get(Customer, customer_ID)
+        if not customer:
+            return jsonify({'error': 'Customer not found'}), 404
+
+        # Return the account data
+        return jsonify({
+            'customer_id': customer.customer_id,  
+            'customer_other_details': customer.customer_other_details 
+        })
+
+    @app.route('/customer_calls', methods=['GET'])
+    @jwt_required()
+    def get_customer_calls():
+        claims = get_jwt()  # Get the full claims from the JWT
+        if claims.get('role') != 'admin':
+            return jsonify({'error': 'Access forbidden: You do not have the required role'}), 403
+
+        customer_calls = CustomerCall.query.all()
+        return jsonify([{
+            'call_id': cc.call_id,  # Customer Call ID
+            'customer_id': cc.customer_id,  # Customer ID associated with the call
+            'call_date_time': cc.call_date_time,  # Date and time of the call
+            'call_description': cc.call_description,  # Description of the call
+            'call_outcome_code': cc.call_outcome_code,  # Outcome code of the call
+            'call_status_code': cc.call_status_code  # Status code of the call
+        } for cc in customer_calls])
+
+# Register error handlers
+def register_error_handlers(app):
+    @app.errorhandler(404)
+    def not_found(e):
+        return jsonify({'error': 'Resource not found'}), 404
+
+    @app.errorhandler(500)
+    def server_error(e):
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 class Customer(db.Model):
@@ -84,3 +157,7 @@ class RefCustomerType(db.Model):
 
     customer_type_code = db.Column('customer_Type_Code', db.String(50), primary_key=True)
     customer_type_description = db.Column('customer_Type_Description', db.String(255), nullable=True)
+
+if __name__ == '__main__':
+    app = create_app()
+    app.run(debug=True)
