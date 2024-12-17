@@ -162,7 +162,7 @@ def register_routes(app):
     def delete_customer(customer_id):
         try:
             # Find the customer by ID
-            customer = Customer.query.get(customer_id)
+            customer = db.session.get(Customer, customer_id)
             
             if customer is None:
                 return jsonify({'error': 'Customer not found'}), 404
@@ -185,7 +185,7 @@ def register_routes(app):
         data = request.get_json()
 
         # Find the customer by ID
-        customer = Customer.query.get(customer_id)
+        customer = db.session.get(Customer, customer_id)
         
         if customer is None:
             return jsonify({'error': 'Customer not found'}), 404
