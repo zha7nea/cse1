@@ -179,6 +179,34 @@ def register_routes(app):
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': str(e)}), 400
+
+    @app.route('/customers/<int:customer_id>', methods=['PUT'])
+    def update_customer(customer_id):
+        data = request.get_json()
+
+        # Find the customer by ID
+        customer = Customer.query.get(customer_id)
+        
+        if customer is None:
+            return jsonify({'error': 'Customer not found'}), 404
+
+        # Check if the customer_other_details field is provided
+        if 'customer_other_details' in data:
+            customer.customer_other_details = data['customer_other_details']
+        else:
+            return jsonify({'error': 'customer_other_details field is required'}), 400
+
+        try:
+            # Commit the changes to the database
+            db.session.commit()
+            
+            # Return a success message
+            return jsonify({'message': 'Customer information updated successfully'}), 200
+        except Exception as e:
+            db.session.rollback()  # Rollback if there is any exception
+            return jsonify({'error': str(e)}), 400
+
+
     
 
 # Register error handlers
